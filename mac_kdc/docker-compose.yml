@@ -1,0 +1,46 @@
+
+version: '2'
+
+networks:
+  custom:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.22.0.0/16
+        gateway: 172.22.0.1
+
+services:
+  kdc:
+    networks:
+      custom:
+        ipv4_address: 172.22.0.2
+    image: sequenceiq/kerberos
+    hostname: kdc.kerberos.com
+    container_name: kdc
+    ports:
+      - "749:749"
+      - "88:88"
+      - "4444:4444"
+      - "464:464"
+      - "749:749/udp"
+      - "88:88/udp"
+      - "4444:4444/udp"
+      - "464:464/udp"
+    environment:
+      REALM: EXAMPLE.COM
+      DOMAIN_REALM: kdc.kerberos.com
+    volumes:
+      - "./config_files/kdc/krb5.conf:/etc/krb5.conf"
+      - "/dev/urandom:/dev/random"
+      - "/etc/localtime:/etc/localtime:ro"
+      - "keytabs:/etc/security/keytabs"
+      - "kdc_storage:/var/kerberos/krb5kdc"
+
+volumes:
+  kdc_storage:
+    driver: local
+  keytabs:
+    driver: local
+  keystore:
+    driver: local
