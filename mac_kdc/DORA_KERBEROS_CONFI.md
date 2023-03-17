@@ -1,6 +1,5 @@
 # Alluxio config for Dora and Kerberos
 ```
-
 alluxio.network.tls.enabled=true
 alluxio.network.tls.keystore.path=/opt/alluxio/keystore.jks
 alluxio.network.tls.keystore.alias=key
@@ -38,4 +37,9 @@ alluxio.worker.page.store.page.size=1MB
 
 alluxio.master.backup.directory=/tmp/alluxio_backups
 alluxio.standby.master.web.enabled=false
+```
+
+## Generate keytab file
+```
+ktutil -k /etc/security/keytabs/alluxio.keytab add -p alluxio/localhost@EXAMPLE.COM -e aes256-cts-hmac-sha1-96 -V 1
 ```
