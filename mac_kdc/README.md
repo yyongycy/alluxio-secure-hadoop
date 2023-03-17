@@ -42,6 +42,12 @@ kadmin -p admin/admin -w admin -q "addprinc -pw admin alluxio/localhost@EXAMPLE.
  .kdc.kerberos.com = EXAMPLE.COM
  kdc.kerberos.com = EXAMPLE.COM
 
+## Create a TLS keystore and truststore
+keytool -genkeypair -alias key -keyalg RSA -keysize 2048 -dname "cn=localhost, ou=Department, o=Company, l=City, st=State, c=US" -ext "SAN=ip:192.168.31.14,ip:192.168.3.28" -keystore ./keystore.jks -keypass keypass -storepass storepass
+
+keytool -export -alias key -keystore keystore.jks -storepass storepass -rfc -file selfsigned.cer
+
+keytool -import -alias key -noprompt -file selfsigned.cer -keystore truststore.jks -storepass trustpass
 
 ## Stop the KDC container
  docker-compose down
