@@ -1,18 +1,22 @@
-Running KDC on MAC
+# Running KDC on MAC
 
-Remove old volume:
+## Remove old volume:
  docker volume rm alluxio-secure-hadoop_keystore
  docker volume rm alluxio-secure-hadoop_keytabs
  docker volume rm alluxio-secure-hadoop_kdc_storage
 
-Start the KDC container
+
+## Start the KDC container
  docker-compose up -d
 
-Add principle:
+
+## Add principle:
 kadmin -p admin/admin -w admin -q "xst -k alluxio.keytab alluxio/localhost@EXAMPLE.COM"
+
 kadmin -p admin/admin -w admin -q "addprinc -pw admin alluxio/localhost@EXAMPLE.COM"
 
-Create a file "/etc/krb5.conf" on the MAC:
+
+## Create a file "/etc/krb5.conf" on the MAC:
 [logging]
  default = FILE:/var/log/kerberos/krb5libs.log
  kdc = FILE:/var/log/kerberos/krb5kdc.log
@@ -38,5 +42,6 @@ Create a file "/etc/krb5.conf" on the MAC:
  .kdc.kerberos.com = EXAMPLE.COM
  kdc.kerberos.com = EXAMPLE.COM
 
-Stop the KDC container
+
+## Stop the KDC container
  docker-compose down
