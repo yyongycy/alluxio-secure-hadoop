@@ -1,5 +1,5 @@
 # alluxio-secure-hadoop
-Test Alluxio Enterprise with Apache Hadoop 2.10.1 in secure mode
+Test Alluxio Enterprise Edition with Apache Hadoop 2.10.1 in secure mode (TLS and Kerberos)
 
 This repo contains docker compose artifacts that build and launch a small Alluxio cluster that runs against a secure Hadoop environment with Kerberos enabled and SSL connections enforced. It also deploys an example of using secure client access methods including:
 - Alluxio command line interface (CLI)
@@ -17,8 +17,9 @@ Since Alluxio supports a Prometheus sink for metrics, it also deploys:
 [Start the containers](#start_containers)  
 [Test secure access to Alluxio](#use_alluxio)  
 [Use Hive with Alluxio](#use_hive)  
-[Use MapReduce2/YARN with Alluxio](#use_yarn)  
+[Use Trino with Alluxio](#use_trino)  
 [Use Spark with Alluxio](#use_spark)  
+[Use MapReduce2/YARN with Alluxio](#use_yarn)  
 [Use Prometheus to monitor Alluxio](#use_prometheus)  
 [Use Grafana to monitor Alluxio](#use_grafana)  
 
@@ -83,9 +84,9 @@ Install the docker-compose package
 
      cd alluxio-secure-hadoop
 
-#### Step 3. Copy your Alluxio Enterprise license file
+#### Step 3. Copy your Alluxio Enterprise Edition license file
 
-If you don't already have an Alluxio Enterprise license file, contact your Alluxio salesperson at sales@alluxio.com.  Copy your license file to the alluxio staging directory:
+If you don't already have an Alluxio Enterprise Edition license file, contact your Alluxio salesperson at sales@alluxio.com.  Copy your license file to the alluxio staging directory:
 
      cp ~/Downloads/alluxio-enterprise-license.json config_files/alluxio/
 
@@ -95,7 +96,7 @@ If you want to test your own Alluxio release, instead of using the release bundl
 
 a. Copy your Alluxio tarball file (.tar.gz) to a directory accessible by the docker-compose utility.
 
-b. Modify the docker-compose.yml file, to "mount" that file as a volume. The target mount point must be in "/tmp/alluxio-install/". For example:
+b. Modify the docker-compose.yml file, and add a new entry to the "volumes:" section for the alluxio-master and alluxio-worker services. The purpose is to "mount" your tarball file as a volume and the target mount point must be in "/tmp/alluxio-install/". For example:
 
      volumes:
        - ~/Downloads/alluxio-enterprise-2.7.0-SNAPSHOT-bin.tar.gz:/tmp/alluxio-install/alluxio-enterprise-2.7.0-SNAPSHOT-bin.tar.gz 
@@ -111,14 +112,14 @@ The Dockerfile script is setup to copy tarballs and zip files from the local_fil
 
      mkdir -p local_files && cd local_files
 
-     curl -v -j -k -L -H "Cookie: oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jdk/8u131-b11/d54c1d3a095b4ff2b6607d096fa80163/jdk-8u131-linux-x64.rpm -O
-     curl -v -j -k -L -H "Cookie: oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip -O
      curl -L https://archive.apache.org/dist/hadoop/core/hadoop-2.10.1/hadoop-2.10.1.tar.gz -O
      curl -L https://archive.apache.org/dist/hadoop/core/hadoop-2.10.1/hadoop-2.10.1-src.tar.gz -O
      curl -L https://github.com/google/protobuf/releases/download/v2.5.0/protobuf-2.5.0.tar.gz -O
      curl -L https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.5.0/apache-maven-3.5.0-bin.tar.gz -O
      curl -L http://repo.mysql.com/yum/mysql-5.7-community/el/7/x86_64/mysql57-community-release-el7-7.noarch.rpm -O
      curl -L https://archive.apache.org/dist/hive/hive-2.3.8/apache-hive-2.3.8-bin.tar.gz -O
+     cp ~/my_dir/alluxio-enterprise-x.x.x-x.x.tar.gz .
+       or 
      curl -L https://downloads.alluxio.io/protected/files/alluxio-enterprise-trial.tar.gz -O
 
      cd ..
@@ -275,7 +276,6 @@ And has the following Alluxio properties setup in the /opt/alluxio/conf/alluxio-
 
      hdfs dfs -ls /user/user1/
 
-
 <a name="use_hive"/></a>
 ### &#x1F536; Use Hive with the Alluxio virtual filesystem
 
@@ -322,14 +322,14 @@ Create a table in Hive that points to the HDFS location
           customer_id BIGINT,
           name STRING,
           email STRING,
-          phone STRING ) 
+          phone STRING )
      ROW FORMAT DELIMITED
      FIELDS TERMINATED BY ','
      LOCATION 'hdfs://hadoop-namenode.docker.com:9000/user/user1/alluxio_table';
 
      SELECT * FROM alluxio_table1;
 
-Create a table in Hive that points to the Alluxio virtual filesystem 
+Create a table in Hive that points to the Alluxio virtual filesystem
 
      USE alluxio_test_db;
 
@@ -337,7 +337,7 @@ Create a table in Hive that points to the Alluxio virtual filesystem
           customer_id BIGINT,
           name STRING,
           email STRING,
-          phone STRING ) 
+          phone STRING )
      ROW FORMAT DELIMITED
      FIELDS TERMINATED BY ','
      LOCATION 'alluxio://alluxio-master.docker.com:19998/user/user1/alluxio_table';
@@ -355,7 +355,7 @@ If you have any issues, you can inspect the Hiveserver2 log file using the comma
      vi /opt/hive/hiveserver2-nohup.out
 
      vi /opt/hive/metastore-nohup.out
-
+ 
 The Hiveserver2 and Hive metastore config files are in:
 
      /etc/hive/conf
@@ -366,7 +366,72 @@ The Hiveserver2 Alluxio config files are in:
 
 The Alluxio client jar file is in:
 
-     /opt/alluxio/client
+     /opt/alluxio/client    
+     
+<a name="use_trino"/></a>
+### &#x1F536; Use Trino with the Alluxio virtual filesystem
+
+#### Step 1. Test Trino using the Alluxio Transparent URI feature
+
+The Alluxio Transparent URI feature will redirect references to s3,s3a and hdfs URIs to the native Alluxio URI (alluxio://). Therefore Hive table definitions with the "external_location=hdfs://<directory name>/<subdirector name>" will be redirected to Alluxio instead of to native HDFS. All the Alluxio data orchestration and data caching capabilities will be employed.
+
+In this project, Trino has been configured to access the Hive metastore and the Alluxio cluster using Kerberos authentication.
+
+Launch a bash session in the Trino coordinator container and run a CREATE TABLE command to create a table using the "hive" Trino cagtalog setup and the "hdfs" URI. Then query the data. Use these commands:
+
+     docker exec -it trino-coordinator bash
+
+     trino --catalog hive --user user1 --debug
+
+     trino>
+
+          USE default;
+
+          CREATE TABLE default.customer
+            WITH (
+              format = 'ORC',
+              external_location = 'alluxio://alluxio-master:19998/tmp/customer/'
+            ) 
+            AS SELECT * FROM tpch.sf1.customer;
+
+          SELECT * FROM default.customer
+               WHERE acctbal > 3500.00 AND acctbal < 9000.00
+               ORDER BY acctbal LIMIT 25;
+
+#### Step 2. Verify that the data was written to Alluxio Cache
+
+Verify that the Trino job created the new "customer" data set using Alluxio. Open a bash session in the Alluxio master container and run the "alluxio fs ls" commands like this:
+
+     docker exec -it alluxio-master bash
+
+     sudo su - alluxio
+
+     klist  # verify that the alluxio user still has a kerberos ticket
+
+     alluxio fs ls -R /tmp/customer
+
+After running the "SELECT * FROM default.customer" Trino query, Alluxio should have cached the results and persisted the data files in the HDFS under store. You can verify that the files with the "PRESISTED" indicator and verify that the data was cached with the "100%" indicator in the output of the "alluxio fs ls" command, as shown below:
+
+     $ alluxio fs ls -R /tmp/customer
+     -rw-r--r--  root root 7602505 PERSISTED 12-22-2023 20:52:00:767 100% /tmp/customer/20231222_205127_00006_f8rsr_e18c7e4a-5aea-487f-9a2d-a37f3afa5ff8
+
+#### Step 3. Verify that Alluxio persisted the data to HDFS
+
+Open a bash session to the Hadoop Namenode container and run the "hdfs dfs -ls" command to view the new data files in HDFS. Use the following commands:
+
+     docker exec -it hadoop-namenode bash
+
+     sudo su - user1
+
+     echo changeme123 | kinit
+
+     hdfs dfs -ls /tmp/customer
+
+The results of the "hdfs dfs -ls" command show the data files created by Alluxio:
+
+     $ hdfs dfs -ls /tmp/customer
+     Found 1 items
+     -rw-r--r--   1    7602505 2023-12-22 20:52 /tmp/customer/20231222_205127_00006_f8rsr_e18c7e4a-5aea-487f-9a2d-a37f3afa5ff8
 
 <a name="use_yarn"/></a>
 ### &#x1F536; Use MapReduce2/YARN with the Alluxio virtual filesystem
@@ -404,7 +469,7 @@ View the results of the word count job:
 
 a. Start a shell session as the test user user1.
 
-     docker exec -it alluxio-master bash
+     docker exec -it hadoop-namenode bash
 
      su - user1
 
@@ -488,7 +553,28 @@ The Grafana  web console is available on port number 3000. So you can use the fo
 
      http://localhost:3000
 
-#### Step 2. TBD
+Sign in with the default username and password: admin/admin
+
+#### Step 2. Access the Alluxio Grafana Dashboard
+
+An Alluxio/Prometheus data source is already defined, but you need to import the standard Alluxio Grafana Dashboard located at:
+
+     https://grafana.com/grafana/dashboards/13467-alluxio-prometheus-grafana-monitor/
+
+On the Grafana console, display the "Import" dashboard menu option by hovering over the plus (+) sign icon on the left margin of the page. In the "Import via Grafana.com" text box, enter the dashboard ID number:
+
+     13467
+
+If the Dashboard already exists, then you do not have to manually import it. Instead, click on the "Search" icon (magnifying glass) and click on the "Alluxio" link.  This will show two existing dashboards:
+
+     Alluxio Prometheus Grafana Monitor
+     Alluxio Master File Ops Dashboard
+
+Click on the "Alluxio Prometheus Grafana Monitor" link to display the pre-defined general Alluxio Grafana dashboard. It will show live Alluxio metrics based on the pre-installed alluxio_prometheus data source.
+
+For a description of the available Alluxio metrics, see:
+
+     https://docs.alluxio.io/ee/user/stable/en/reference/Metrics-List.html
 
 ---
 

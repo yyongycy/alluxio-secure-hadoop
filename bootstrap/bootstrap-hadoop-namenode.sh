@@ -177,6 +177,7 @@ else
   kadmin -p ${KERBEROS_ADMIN} -w ${KERBEROS_ADMIN_PASSWORD} -q "xst -k rm.service.keytab rm/${HADOOP_NAMENODE_FQDN}"
   kadmin -p ${KERBEROS_ADMIN} -w ${KERBEROS_ADMIN_PASSWORD} -q "xst -k nm.service.keytab nm/${HADOOP_DATANODE1_FQDN}"
   kadmin -p ${KERBEROS_ADMIN} -w ${KERBEROS_ADMIN_PASSWORD} -q "xst -k hive.service.keytab hive/${HADOOP_NAMENODE_FQDN}"
+  kadmin -p ${KERBEROS_ADMIN} -w ${KERBEROS_ADMIN_PASSWORD} -q "xst -k trino.service.keytab trino/${HADOOP_NAMENODE_FQDN}"
 
   chmod 400 ${KEYTAB_DIR}/nn.service.keytab
   chmod 400 ${KEYTAB_DIR}/dn.service.keytab
@@ -187,6 +188,7 @@ else
   chmod 400 ${KEYTAB_DIR}/nm.service.keytab
   chown hive:root ${KEYTAB_DIR}/hive.service.keytab
   chmod 400 ${KEYTAB_DIR}/hive.service.keytab
+  chmod 400 ${KEYTAB_DIR}/trino.service.keytab
 
   cd $old_dir
 fi
@@ -245,18 +247,19 @@ fi
 # Copy hive config files
 cp -f /tmp/config_files/hive/* /opt/hive/conf/
 
-# Save a copy of the Alluxio client jar file, referenced in hive-env.sh
-CLIENT_JAR=$(ls $ALLUXIO_HOME/client/alluxio-enterprise-*-client.jar)
-CLIENT_JAR=$(basename $CLIENT_JAR)
+# Save a copy of the Alluxio client jar files, referenced in hive-env.sh
 echo
 echo "- Setting up Alluxio client environment in /etc/alluxio/alluxio-site.properties and /opt/alluxio/client/$CLIENT_JAR"
-cp $ALLUXIO_HOME/client/$CLIENT_JAR /tmp/
-cp /tmp/config_files/alluxio/alluxio-site.properties.client-only /tmp/
-rm -rf /opt/alluxio-enterprise* /opt/alluxio
-mkdir -p $ALLUXIO_HOME/client
-mv /tmp/$CLIENT_JAR $ALLUXIO_HOME/client/
-mkdir -p $ALLUXIO_HOME/conf
-mv /tmp/alluxio-site.properties.client-only $ALLUXIO_HOME/conf/alluxio-site.properties
+cp /tmp/config_files/alluxio/alluxio-site.properties.client-only $ALLUXIO_HOME/conf/alluxio-site.properties
+#CLIENT_JAR=$(ls $ALLUXIO_HOME/client/alluxio-enterprise-*-client.jar)
+#CLIENT_JAR=$(basename $CLIENT_JAR)
+#cp $ALLUXIO_HOME/client/$CLIENT_JAR /tmp/
+#cp /tmp/config_files/alluxio/alluxio-site.properties.client-only /tmp/
+#rm -rf /opt/alluxio-enterprise* /opt/alluxio
+#mkdir -p $ALLUXIO_HOME/client
+#mv /tmp/$CLIENT_JAR $ALLUXIO_HOME/client/
+#mkdir -p $ALLUXIO_HOME/conf
+#mv /tmp/alluxio-site.properties.client-only $ALLUXIO_HOME/conf/alluxio-site.properties
 
 # Remove the duplicate log4j jar file
 if [ -f $HIVE_HOME/lib/log4j-slf4j-impl-2.6.2.jar ]; then
@@ -314,15 +317,19 @@ fi
 rm /tmp/mysql_commands.sql
 
 #
+# Setup Spark
+#
+
+# Change the Spark Web UI port from 8080 to 8082, so it doesnt conflict with Trino port
+echo "SPARK_MASTER_WEBUI_PORT=8082" >> /etc/spark/conf/spark-env.sh
+
+#
 # Start the hadoop namenode daemons
 #
 source /etc/profile
 
 $HADOOP_HOME/etc/hadoop/hadoop-env.sh
  
-# Temporary fix for: DatanodeProtocol: this service is only accessible by dn/hadoop-namenode.docker.com@EXAMPLE.COM
-#echo "sun.security.krb5.disableReferrals=true" >> /usr/java/default/jre/lib/security/java.security
-
 echo
 echo "- Starting namenode daemon"
 nohup $HADOOP_HOME/bin/hdfs --config $HADOOP_CONF_DIR namenode > /var/log/hadoop-namenode.log 2>&1 &
